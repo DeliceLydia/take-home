@@ -1,85 +1,85 @@
-const UserModel = require('../models/User')
-const brycr = require('bcrypt')
-const jwt = require('jsonwebtoken')
+const UserModel = require("../models/User");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
-const loginUser = async(req,res)=>{
-    const {email,password} = req.body
-    const user  = await UserModel.findOne({email})
-    if( user && (await brycr.compare(password,user.password))){
-        await user.save()
-        const token = jwt.sign({id:user._id},process.env.JWT_SECRET,{expiresIn:'3h'})
-        res.status(200).json({
-            message:'success',
-            data:{
-                _id : user._id,
-                token:token
-               
-            },
-            status: 200
-        })
-    }else{
-        res.status(400).json({
-            message:'failed',
-            status:400
-        })
-        
-    }
+const signup = async (req, res) => {
+  const { email, name, password } = req.body;
+  const inopp = ["joe", "asn", "das"];
+  try {
+    const haspassword = await bcrypt.hash(password, 10);
+    const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-}
-
-
-
-const signup = async (req,res) =>{
-    const {email,name,password}= req.body
-    const inopp = ['joe','asn','das']
-    try{
-    const salt = await brycr.genSalt(10)
-    const haspassword = await brycr.hash(password,salt)
-    const allemail = await UserModel.findOne({email})
-    
-    for (let i = 0; i<inopp.length;i++) {
-        if(name == inopp[i]){
-            res.json({
-                message:"name is invalid"
-              })
-            return
-        }
-    }
-
-    if(allemail){
-      res.json({
-        message:"email already exist"
-      })
-    }else if(!email.includes('@')){
+    for (let i = 0; i < inopp.length; i++) {
+      if (name == inopp[i]) {
         res.json({
-            message:"email is invalid"
-          })
-    }
-    const saveuser = await UserModel.create({
-        email,
-        name,
-        password:haspassword,
-      })
-      if(saveuser){
-        res.json({
-          message:"successfully",
-          data:saveuser
-        })
-      }else{
-        res.json({
-          message:"failed"
-        })
+          message: "name is invalid",
+        });
+        return;
       }
-  
-    }catch(err){
-      console.log(err)
     }
-  
+
+    if (!name || !email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Please provide all required fields." });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: "Invalid email address." });
+    }
+
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already registered." });
+    }
+
+    const saveuser = await UserModel.create({
+      email,
+      name,
+      password: haspassword,
+    });
+    if (saveuser) {
+      res.status(201).json({
+        message: "Account created successfully",
+        token,
+      });
+    }
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Internal server error." });
   }
+};
 
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
 
-  module.exports = {
-    signup,
-    loginUser
-}
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    res.status(200).json({ token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+module.exports = {
+  signup,
+  loginUser,
+};
